@@ -1,0 +1,10 @@
+- .Trash-1000/**
+- desktop.ini
+- thumbs.db
+- General.archive/**
+- Explicit.archive/**
+- Games/**
+- Software/**
+- Temporary/**
+- .stversions/**
+- .stfolder/**

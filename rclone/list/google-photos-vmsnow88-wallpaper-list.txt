@@ -1,0 +1,5 @@
+- .Trash-1000/
+- desktop.ini
+- thumbs.db
+- .stversions/**
+- .stfolder/**
