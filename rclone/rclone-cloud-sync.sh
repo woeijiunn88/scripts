@@ -46,7 +46,6 @@ echo "Syncing 2FA..."
 LOGFILE_2FA="$LOG_DIR/google-drive-davidtay-snow88-2fa-$(date +%Y%m%d-%H%M%S).log"
 rclone sync /home/woeijiunn88/Documents/2FA google-drive-davidtay-snow88:2FA \
   --track-renames \
-  --filter-from "$HOME/projects/scripts/rclone/list/onedrive-personal-vmsnow88-list.txt" \
   --checkers 8 --transfers 4 --tpslimit 4 --bwlimit 5M \
   --retries 10 --low-level-retries 20 --timeout 10s --retries-sleep 5s \
   --log-level INFO \
