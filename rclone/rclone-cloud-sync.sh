@@ -8,6 +8,21 @@ flock -n 200 || { echo "$(basename "$0") is already running — exiting"; exit 1
 LOG_DIR="$HOME/.log/rclone"
 mkdir -p "$LOG_DIR"
 
+GOTIFY_URL="http://localhost:8090"
+GOTIFY_TOKEN_FILE="$HOME/.config/rclone/gotify-rclone-token"
+GOTIFY_TOKEN="$(cat "$GOTIFY_TOKEN_FILE" 2>/dev/null)"
+FAILED_JOBS=()
+
+_gotify() {
+    local title="$1" msg="$2" priority="${3:-7}"
+    [[ -z "$GOTIFY_TOKEN" ]] && return
+    curl -s -X POST "$GOTIFY_URL/message" \
+        -H "X-Gotify-Key: $GOTIFY_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{\"title\":\"$title\",\"message\":\"$msg\",\"priority\":$priority}" \
+        > /dev/null
+}
+
 cleanup() {
     local reason="$1"
     echo "Script exiting due to: $reason"
@@ -33,6 +48,11 @@ cleanup() {
         ls -1t "$LOG_DIR"/${prefix}-*.log 2>/dev/null | tail -n +6 | xargs -r rm -f
     done
 
+    if [[ ${#FAILED_JOBS[@]} -gt 0 ]]; then
+        _gotify "rclone sync failed" "Failed jobs: ${FAILED_JOBS[*]}" 7
+        echo "Notified Gotify: failed jobs — ${FAILED_JOBS[*]}"
+    fi
+
     rm -f "$LOCKFILE"
     exit 0
 }
@@ -49,7 +69,7 @@ rclone sync /home/woeijiunn88/Documents/2FA google-drive-davidtay-snow88:2FA \
   --checkers 8 --transfers 4 --tpslimit 4 --bwlimit 5M \
   --retries 10 --low-level-retries 20 --timeout 10s --retries-sleep 5s \
   --log-level INFO \
-  --log-file "$LOGFILE_2FA" \
+  --log-file "$LOGFILE_2FA" || FAILED_JOBS+=("2fa")
 
 
 # Obsidian Vault
@@ -61,7 +81,7 @@ rclone sync "/home/woeijiunn88/Documents/Obsidian Vault" onedrive-personal-vmsno
   --checkers 8 --transfers 4 --tpslimit 4 --bwlimit 5M \
   --retries 10 --low-level-retries 20 --timeout 10s --retries-sleep 5s \
   --log-level INFO \
-  --log-file "$LOGFILE_OV" \
+  --log-file "$LOGFILE_OV" || FAILED_JOBS+=("obsidian")
 
 
 # Work
@@ -73,7 +93,7 @@ rclone sync /home/woeijiunn88/Documents/Work onedrive-personal-vmsnow88:Document
   --checkers 8 --transfers 4 --tpslimit 4 --bwlimit 5M \
   --retries 10 --low-level-retries 20 --timeout 10s --retries-sleep 5s \
   --log-level INFO \
-  --log-file "$LOGFILE_WORK"
+  --log-file "$LOGFILE_WORK" || FAILED_JOBS+=("work")
 
 
 # Twitter
@@ -85,7 +105,7 @@ rclone sync /mnt/sdb1/Pictures/Twitter onedrive-personal-vmsnow88:Pictures/Twitt
   --checkers 8 --transfers 4 --tpslimit 4 --bwlimit 5M \
   --retries 10 --low-level-retries 20 --timeout 10s --retries-sleep 5s \
   --log-level INFO \
-  --log-file "$LOGFILE_TWITTER"
+  --log-file "$LOGFILE_TWITTER" || FAILED_JOBS+=("twitter")
 
 
 # pixiv
@@ -97,7 +117,7 @@ rclone sync /mnt/sdb1/Pictures/pixiv onedrive-personal-vmsnow88:Pictures/pixiv \
   --checkers 8 --transfers 4 --tpslimit 4 --bwlimit 5M \
   --retries 10 --low-level-retries 20 --timeout 10s --retries-sleep 5s \
   --log-level INFO \
-  --log-file "$LOGFILE_PIXIV"
+  --log-file "$LOGFILE_PIXIV" || FAILED_JOBS+=("pixiv")
 
 
 # Flare
@@ -109,7 +129,7 @@ rclone sync /mnt/sdb1/Pictures/Flare onedrive-personal-vmsnow88:Pictures/Flare \
   --checkers 8 --transfers 4 --tpslimit 4 --bwlimit 5M \
   --retries 10 --low-level-retries 20 --timeout 10s --retries-sleep 5s \
   --log-level INFO \
-  --log-file "$LOGFILE_FLARE"
+  --log-file "$LOGFILE_FLARE" || FAILED_JOBS+=("flare")
 
 
 # Plurk
@@ -121,7 +141,7 @@ rclone sync /mnt/sdb1/Pictures/Plurk onedrive-personal-vmsnow88:Pictures/Plurk \
   --checkers 8 --transfers 4 --tpslimit 4 --bwlimit 5M \
   --retries 10 --low-level-retries 20 --timeout 10s --retries-sleep 5s \
   --log-level INFO \
-  --log-file "$LOGFILE_PLURK"
+  --log-file "$LOGFILE_PLURK" || FAILED_JOBS+=("plurk")
 
 
 # Screenshots (Windows)
@@ -133,7 +153,7 @@ rclone sync /mnt/sdb1/Backup/Screenshots/Windows onedrive-personal-vmsnow88:Pict
   --checkers 8 --transfers 4 --tpslimit 4 --bwlimit 5M \
   --retries 10 --low-level-retries 20 --timeout 10s --retries-sleep 5s \
   --log-level INFO \
-  --log-file "$LOGFILE_SS_WIN"
+  --log-file "$LOGFILE_SS_WIN" || FAILED_JOBS+=("screenshots-windows")
 
 
 # Screenshots (Android)
@@ -145,7 +165,7 @@ rclone sync /mnt/sdb1/Backup/Screenshots/Android onedrive-personal-vmsnow88:Pict
   --checkers 8 --transfers 4 --tpslimit 4 --bwlimit 5M \
   --retries 10 --low-level-retries 20 --timeout 10s --retries-sleep 5s \
   --log-level INFO \
-  --log-file "$LOGFILE_SS_ANDROID"
+  --log-file "$LOGFILE_SS_ANDROID" || FAILED_JOBS+=("screenshots-android")
 
 
 # Screenshots (Linux)
@@ -157,7 +177,7 @@ rclone sync /home/woeijiunn88/Pictures/Screenshots onedrive-personal-vmsnow88:Pi
   --checkers 8 --transfers 4 --tpslimit 4 --bwlimit 5M \
   --retries 10 --low-level-retries 20 --timeout 10s --retries-sleep 5s \
   --log-level INFO \
-  --log-file "$LOGFILE_SS_LINUX"
+  --log-file "$LOGFILE_SS_LINUX" || FAILED_JOBS+=("screenshots-linux")
 
 # --------------------
 # Normalize EXIF date ONLY IF DateTimeOriginal is missing
@@ -182,7 +202,7 @@ rclone sync "/home/woeijiunn88/Pictures/Wallpaper" "google-photos-vmsnow88:album
   --checkers 16 --transfers 8 --tpslimit 8 --bwlimit 5M \
   --retries 10 --low-level-retries 20 --timeout 10s --retries-sleep 5s \
   --log-level INFO \
-  --log-file "$LOGFILE_WALLPAPER_GP"
+  --log-file "$LOGFILE_WALLPAPER_GP" || FAILED_JOBS+=("wallpaper-googlephotos")
 
 
 # Wallpaper (OneDrive)
@@ -194,7 +214,7 @@ rclone sync /home/woeijiunn88/Pictures/Wallpaper onedrive-personal-vmsnow88:Pict
   --checkers 8 --transfers 4 --tpslimit 4 --bwlimit 5M \
   --retries 10 --low-level-retries 20 --timeout 10s --retries-sleep 5s \
   --log-level INFO \
-  --log-file "$LOGFILE_WALLPAPER_OD"
+  --log-file "$LOGFILE_WALLPAPER_OD" || FAILED_JOBS+=("wallpaper-onedrive")
 
 
 # DCIM
@@ -206,7 +226,7 @@ rclone sync /mnt/sdb1/DCIM onedrive-personal-vmsnow88:DCIM \
   --checkers 8 --transfers 4 --tpslimit 4 --bwlimit 5M \
   --retries 10 --low-level-retries 20 --timeout 10s --retries-sleep 5s \
   --log-level INFO \
-  --log-file "$LOGFILE_DCIM"
+  --log-file "$LOGFILE_DCIM" || FAILED_JOBS+=("dcim")
 
 
 # Sync sda1
@@ -219,7 +239,7 @@ rclone sync /mnt/sda1 onedrive-ykswy-anime: \
   --onedrive-chunk-size 128M --multi-thread-streams 4 --buffer-size 64M \
   --retries 10 --low-level-retries 20 --timeout 10s --retries-sleep 5s \
   --log-level INFO \
-  --log-file "$LOGFILE_SDA1"
+  --log-file "$LOGFILE_SDA1" || FAILED_JOBS+=("sda1-anime")
 
 
 # Sync sdb1
@@ -232,7 +252,7 @@ rclone sync /mnt/sdb1 onedrive-ykswy-media: \
   --onedrive-chunk-size 128M --multi-thread-streams 4 --buffer-size 64M \
   --retries 10 --low-level-retries 20 --timeout 10s --retries-sleep 5s \
   --log-level INFO \
-  --log-file "$LOGFILE_SDB1"
+  --log-file "$LOGFILE_SDB1" || FAILED_JOBS+=("sdb1-media")
 
 
 echo "Execution done."
