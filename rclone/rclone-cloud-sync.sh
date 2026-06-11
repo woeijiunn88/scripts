@@ -12,11 +12,25 @@ cleanup() {
     local reason="$1"
     echo "Script exiting due to: $reason"
 
-    find "$LOG_DIR" -type f -name "rclone-*.log" -size 0c -delete
+    find "$LOG_DIR" -type f -name "*.log" -size 0c -delete
 
-    # update prefix list
-    for prefix in work twitter pixiv screenshots-windows screenshots-android screenshots-linux wallpaper dcim; do
-        ls -1t "$LOG_DIR"/rclone-${prefix}-*.log 2>/dev/null | tail -n +6 | xargs -r rm -f
+    for prefix in \
+        google-drive-davidtay-snow88-2fa \
+        onedrive-personal-vmsnow88-ov \
+        onedrive-personal-vmsnow88-work \
+        onedrive-personal-vmsnow88-twitter \
+        onedrive-personal-vmsnow88-pixiv \
+        onedrive-personal-vmsnow88-flare \
+        onedrive-personal-vmsnow88-plurk \
+        onedrive-personal-vmsnow88-screenshots-windows \
+        onedrive-personal-vmsnow88-screenshots-android \
+        onedrive-personal-vmsnow88-screenshots-linux \
+        google-photos-vmsnow88-wallpaper \
+        onedrive-personal-vmsnow88-wallpaper \
+        onedrive-personal-vmsnow88-dcim \
+        onedrive-ykswy-sda1-anime \
+        onedrive-ykswy-sdb1-media; do
+        ls -1t "$LOG_DIR"/${prefix}-*.log 2>/dev/null | tail -n +6 | xargs -r rm -f
     done
 
     rm -f "$LOCKFILE"
