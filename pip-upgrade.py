@@ -10,6 +10,7 @@ Conflict strategy:
      Conflicting packages must be resolved manually.
 """
 
+import shutil
 import subprocess
 import sys
 import logging
@@ -209,6 +210,26 @@ def upgrade_package(package: str, current_version: str) -> str:
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
+def upgrade_pipx() -> bool:
+    """Run pipx upgrade-all. Returns True on success."""
+    pipx = shutil.which("pipx")
+    if not pipx:
+        logger.info("  pipx not found — skipping")
+        return True
+    logger.info("⬆️  Running pipx upgrade-all...")
+    result = subprocess.run([pipx, "upgrade-all"], stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True)
+    for line in result.stdout.splitlines():
+        line = line.strip()
+        if line:
+            logger.info(f"  [pipx] {line}")
+    if result.returncode == 0:
+        logger.info("  pipx upgrade-all done")
+    else:
+        logger.warning(f"  pipx upgrade-all exited {result.returncode}")
+    return result.returncode == 0
+
+
 def main():
     logger.info(f"🕐 Started : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"📄 Log file: {LOG_FILE}")
@@ -276,10 +297,16 @@ def main():
                 logger.info(f"    • {p}")
 
     logger.info("━" * 42)
+
+    logger.info("")
+    pipx_ok = upgrade_pipx()
+
+    logger.info("")
+    logger.info("━" * 42)
     logger.info(f"🕐 Finished : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"📄 Log file : {LOG_FILE}")
 
-    return 0 if not results["failed"] and not results["rollback_failed"] else 1
+    return 0 if not results["failed"] and not results["rollback_failed"] and pipx_ok else 1
 
 
 if __name__ == "__main__":

@@ -174,6 +174,24 @@ _index_one() {
                 printf '       '; _yellow "Auto-deleted stale twin: "; _dim "${_proj_names[$i]}"; echo
             fi
         done
+        # Auto-install post-commit hook if this is a git repo without one
+        if [[ -d "$target/.git" ]]; then
+            local hook_path="$target/.git/hooks/post-commit"
+            if grep -q "codebase-memory-mcp" "$hook_path" 2>/dev/null; then
+                printf '       '; _dim "git hook already installed"; echo
+            else
+                printf '       Installing git hook... '
+                printf '%s\n' '#!/usr/bin/env bash' \
+                    '_mcp_bin="$(command -v codebase-memory-mcp 2>/dev/null)"' \
+                    '[[ -z "$_mcp_bin" ]] && exit 0' \
+                    '_repo="$(git rev-parse --show-toplevel 2>/dev/null)"' \
+                    '[[ -z "$_repo" ]] && exit 0' \
+                    '"$_mcp_bin" cli index_repository "{\"repo_path\":\"$_repo\"}" > /dev/null 2>&1 &' \
+                    > "$hook_path"
+                chmod +x "$hook_path"
+                _green "done"; echo
+            fi
+        fi
     else
         _red "failed"; echo
         echo "$result" | head -3 | sed 's/^/    /'
@@ -185,7 +203,7 @@ _index_one() {
 do_index() {
     echo
     local subdirs=()
-    [[ -d "$WORKSPACE_ROOT" ]] && mapfile -t subdirs < <(find "$WORKSPACE_ROOT" -maxdepth 1 -mindepth 1 -type d | sort)
+    [[ -d "$WORKSPACE_ROOT" ]] && mapfile -t subdirs < <(find "$WORKSPACE_ROOT" -maxdepth 1 -mindepth 1 -type d -not -name '.*' | sort)
 
     local targets=()
 

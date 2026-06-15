@@ -43,7 +43,7 @@ VC10_KEYFILE="/home/woeijiunn88/Documents/2FA/Keyfile/h1kW+P1h24s1zvHt9Z04Gw=="
 VC11_VOLUME="/mnt/sdb1/Documents/RlBQLnJhcg==.vmx"
 VC11_MOUNT="/mnt/veracrypt11"
 VC11_KEYFILE="/home/woeijiunn88/Documents/2FA/Keyfile/h1kW+P1h24s1zvHt9Z04Gw=="
-VC11_COMPOSE="/home/woeijiunn88/.docker/pigallery2-fpp/pigallery2.yml"
+VC11_COMPOSE="/home/woeijiunn88/.docker/pigallery2-fpp/docker-compose.yml"
 VC11_DOCKER_PORT=5777
 
 IDLE_TIMEOUT=1200        # seconds before auto-unmount (20 min)
