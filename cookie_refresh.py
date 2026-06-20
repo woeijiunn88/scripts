@@ -38,7 +38,7 @@ IMGFAV_CFG = Path(os.environ.get("IMG_FAV_CONFIG_DIR", "~/.config/img-fav-downlo
 PW_STORE   = NP_CFG / "playwright"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
-                    datefmt="%H:%M:%S", stream=sys.stdout)
+                    datefmt="%H:%M:%S", stream=sys.stderr)
 log = logging.getLogger("cookie-refresh")
 
 # ── Platform config ───────────────────────────────────────────────────────────
