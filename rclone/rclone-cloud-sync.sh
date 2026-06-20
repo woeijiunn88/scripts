@@ -145,8 +145,8 @@ rclone sync /home/woeijiunn88/Documents/Work onedrive-personal-vmsnow88:Document
 JOBS_RUN+=1
 
 
-# Twitter
-echo "Syncing Twitter..."
+# X (Twitter)
+echo "Syncing X (Twitter)..."
 LOGFILE_TWITTER="$LOG_DIR/onedrive-personal-vmsnow88-twitter-$(date +%Y%m%d-%H%M%S).log"
 rclone sync /mnt/sdb1/Pictures/Twitter onedrive-personal-vmsnow88:Pictures/Twitter \
   --track-renames \

@@ -2,7 +2,7 @@
 """
 cookie_refresh.py
 ─────────────────
-Headless Playwright cookie keep-alive for Twitter, Instagram, Facebook,
+Headless Playwright cookie keep-alive for X (Twitter), Instagram, Facebook,
 Bilibili, and Weibo. Visits each platform URL to reset session TTL
 server-side, then exports fresh cookies to both config dirs.
 
