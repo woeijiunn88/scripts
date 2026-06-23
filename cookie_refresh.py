@@ -24,6 +24,9 @@ Required env (loaded from notify-push .env):
 import argparse, json, logging, os, shutil, sqlite3, sys, tempfile, time
 from pathlib import Path
 from dataclasses import dataclass, field
+from typing import Callable
+
+import requests
 
 # ── Path setup ────────────────────────────────────────────────────────────────
 
@@ -50,13 +53,52 @@ class Platform:
     domains: list[str]
     url: str
     session_cookies: list[str]
+    validator: Callable[[list[dict]], bool] | None = None
+
+
+def _requests_session_from_cookies(cookies: list[dict]) -> requests.Session:
+    sess = requests.Session()
+    for c in cookies:
+        try:
+            sess.cookies.set(
+                c.get("name", ""),
+                c.get("value", ""),
+                domain=c.get("domain") or None,
+                path=c.get("path") or "/",
+            )
+        except Exception:
+            continue
+    sess.headers.update({"User-Agent": _USER_AGENT})
+    return sess
+
+
+def _validate_weibo_session(cookies: list[dict]) -> bool:
+    """Require actual logged-in responses, not just presence of SUB."""
+    try:
+        sess = _requests_session_from_cookies(cookies)
+
+        mobile = sess.get("https://m.weibo.cn/api/config", timeout=20)
+        mobile.raise_for_status()
+        mobile_payload = mobile.json()
+        if not ((mobile_payload.get("data") or {}).get("login")):
+            return False
+
+        desktop = sess.get("https://weibo.com/", timeout=20, allow_redirects=True)
+        final_url = desktop.url.lower()
+        if "login.sina.com.cn" in final_url or "weibo.com/login.php" in final_url:
+            return False
+
+        return True
+    except Exception as exc:
+        log.warning(f"Weibo session validation failed: {exc}")
+        return False
 
 PLATFORMS: list[Platform] = [
     Platform("Twitter",   "twitter",   [".twitter.com", ".x.com"],       "https://x.com/home",            ["auth_token"]),
     Platform("Instagram", "instagram", [".instagram.com"],                "https://www.instagram.com/",    ["sessionid"]),
     Platform("Facebook",  "facebook",  [".facebook.com"],                 "https://www.facebook.com/",     ["c_user", "xs"]),
     Platform("哔哩哔哩",  "bilibili",  [".bilibili.com"],                 "https://www.bilibili.com/",     ["SESSDATA", "bili_jct"]),
-    Platform("Weibo",     "weibo",     [".weibo.com", ".weibo.cn", ".sina.com.cn"], "https://m.weibo.cn/", ["SUB"]),
+    Platform("Weibo",     "weibo",     [".weibo.com", ".weibo.cn", ".sina.com.cn"], "https://m.weibo.cn/", ["SUB"], validator=_validate_weibo_session),
 ]
 
 PLATFORM_BY_SLUG  = {p.slug: p  for p in PLATFORMS}
@@ -255,6 +297,9 @@ def refresh_platform(plat: Platform, dry_run: bool = False) -> RefreshResult:
     if stored:
         log.info(f"[{plat.label}] Trying Playwright store ({len(stored)} cookies)")
         ok, updated = visit_with_playwright(plat.url, stored, plat.session_cookies, dry_run)
+        if ok and plat.validator and not plat.validator(updated):
+            log.warning(f"[{plat.label}] Playwright cookies present but auth validation failed")
+            ok = False
     else:
         log.info(f"[{plat.label}] No Playwright store — going straight to Firefox")
         ok, updated = False, []
@@ -266,6 +311,9 @@ def refresh_platform(plat: Platform, dry_run: bool = False) -> RefreshResult:
         if firefox_cookies:
             source = "firefox→playwright"
             ok, updated = visit_with_playwright(plat.url, firefox_cookies, plat.session_cookies, dry_run)
+            if ok and plat.validator and not plat.validator(updated):
+                log.warning(f"[{plat.label}] Firefox cookies imported but auth validation failed")
+                ok = False
         else:
             log.warning(f"[{plat.label}] Firefox also has no cookies")
 
