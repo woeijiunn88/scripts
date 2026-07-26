@@ -54,6 +54,8 @@ class Platform:
     url: str
     session_cookies: list[str]
     validator: Callable[[list[dict]], bool] | None = None
+    extra_netscape_paths: list[Path] = field(default_factory=list)
+    firefox_direct_export: bool = False
 
 
 def _requests_session_from_cookies(cookies: list[dict]) -> requests.Session:
@@ -93,12 +95,77 @@ def _validate_weibo_session(cookies: list[dict]) -> bool:
         log.warning(f"Weibo session validation failed: {exc}")
         return False
 
+
+def _validate_fanbox_session(cookies: list[dict]) -> bool:
+    """Validate that Fanbox cookies can access authenticated API data."""
+    try:
+        try:
+            from curl_cffi import requests as cffi_requests
+            sess = cffi_requests.Session()
+            sess.impersonate = "firefox"
+            for c in cookies:
+                try:
+                    sess.cookies.set(
+                        c.get("name", ""),
+                        c.get("value", ""),
+                        domain=c.get("domain") or None,
+                        path=c.get("path") or "/",
+                    )
+                except Exception:
+                    continue
+        except Exception:
+            sess = _requests_session_from_cookies(cookies)
+        headers = {
+            "Accept": "application/json, text/plain, */*",
+            "Origin": "https://www.fanbox.cc",
+            "Referer": "https://www.fanbox.cc/",
+        }
+        supporting = sess.get(
+            "https://api.fanbox.cc/plan.listSupporting",
+            headers=headers,
+            timeout=20,
+        )
+        supporting.raise_for_status()
+        if "json" not in supporting.headers.get("content-type", "").lower():
+            return False
+        supporting.json()
+
+        test_post_id = os.environ.get("FANBOX_VALIDATE_POST_ID", "").strip()
+        if test_post_id:
+            post = sess.get(
+                f"https://api.fanbox.cc/post.info?postId={test_post_id}",
+                headers=headers,
+                timeout=20,
+            )
+            post.raise_for_status()
+            if "json" not in post.headers.get("content-type", "").lower():
+                return False
+            body = post.json().get("body", {})
+            post_body = body.get("post") if isinstance(body, dict) else None
+            if not isinstance(post_body or body, dict):
+                return False
+
+        return True
+    except Exception as exc:
+        log.warning(f"Fanbox session validation failed: {exc}")
+        return False
+
 PLATFORMS: list[Platform] = [
     Platform("Twitter",   "twitter",   [".twitter.com", ".x.com"],       "https://x.com/home",            ["auth_token"]),
     Platform("Instagram", "instagram", [".instagram.com"],                "https://www.instagram.com/",    ["sessionid"]),
     Platform("Facebook",  "facebook",  [".facebook.com"],                 "https://www.facebook.com/",     ["c_user", "xs"]),
     Platform("哔哩哔哩",  "bilibili",  [".bilibili.com"],                 "https://www.bilibili.com/",     ["SESSDATA", "bili_jct"]),
     Platform("Weibo",     "weibo",     [".weibo.com", ".weibo.cn", ".sina.com.cn"], "https://m.weibo.cn/", ["SUB"], validator=_validate_weibo_session),
+    Platform(
+        "Fanbox",
+        "fanbox",
+        [".fanbox.cc"],
+        "https://www.fanbox.cc/",
+        ["FANBOXSESSID"],
+        validator=_validate_fanbox_session,
+        extra_netscape_paths=[Path("/home/woeijiunn88/projects/web-bot/cookies-fanbox-cc.txt")],
+        firefox_direct_export=True,
+    ),
 ]
 
 PLATFORM_BY_SLUG  = {p.slug: p  for p in PLATFORMS}
@@ -110,6 +177,7 @@ ALIASES: dict[str, str] = {
     "fb": "facebook", "facebook": "facebook",
     "bili": "bilibili", "bilibili": "bilibili", "哔哩哔哩": "bilibili",
     "weibo": "weibo",
+    "fanbox": "fanbox",
 }
 
 # ── Result ────────────────────────────────────────────────────────────────────
@@ -309,11 +377,20 @@ def refresh_platform(plat: Platform, dry_run: bool = False) -> RefreshResult:
         log.info(f"[{plat.label}] Playwright session invalid — trying Firefox cookies.sqlite")
         firefox_cookies = import_from_firefox(plat.domains)
         if firefox_cookies:
-            source = "firefox→playwright"
-            ok, updated = visit_with_playwright(plat.url, firefox_cookies, plat.session_cookies, dry_run)
-            if ok and plat.validator and not plat.validator(updated):
-                log.warning(f"[{plat.label}] Firefox cookies imported but auth validation failed")
-                ok = False
+            if plat.firefox_direct_export:
+                source = "firefox"
+                updated = firefox_cookies
+                names = {c.get("name") for c in updated}
+                ok = all(n in names for n in plat.session_cookies)
+                if ok and plat.validator and not plat.validator(updated):
+                    log.warning(f"[{plat.label}] Firefox cookies imported but auth validation failed")
+                    ok = False
+            else:
+                source = "firefox→playwright"
+                ok, updated = visit_with_playwright(plat.url, firefox_cookies, plat.session_cookies, dry_run)
+                if ok and plat.validator and not plat.validator(updated):
+                    log.warning(f"[{plat.label}] Firefox cookies imported but auth validation failed")
+                    ok = False
         else:
             log.warning(f"[{plat.label}] Firefox also has no cookies")
 
@@ -328,7 +405,10 @@ def refresh_platform(plat: Platform, dry_run: bool = False) -> RefreshResult:
         save_playwright_store(pw_store, updated)
         write_netscape(netscape_np, updated)
         write_netscape(netscape_img, updated)
-        log.info(f"[{plat.label}] Exported to {netscape_np} and {netscape_img}")
+        for extra_path in plat.extra_netscape_paths:
+            write_netscape(extra_path, updated)
+        extra = f" and {len(plat.extra_netscape_paths)} extra path(s)" if plat.extra_netscape_paths else ""
+        log.info(f"[{plat.label}] Exported to {netscape_np} and {netscape_img}{extra}")
 
     return RefreshResult(label=plat.label, ok=True, source=source, cookie_count=len(updated))
 
